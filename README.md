@@ -50,13 +50,15 @@ Konvertierung der Datentypen
     ALTER TABLE fahrzeiten_soll_ist ADD datumzeit_ist_an_von DATETIME NULL;
     ALTER TABLE fahrzeiten_soll_ist ADD datumzeit_soll_ab_von DATETIME NULL;
     ALTER TABLE fahrzeiten_soll_ist ADD datumzeit_ist_ab_von DATETIME NULL;
-    ALTER TABLE fahrzeiten_soll_ist ADD datum__nach DATE NULL;UPDATE fahrzeiten_soll_ist SET betriebs_datum = STR_TO_DATE(betriebsdatum ,'%d.%m.%Y');
+    ALTER TABLE fahrzeiten_soll_ist ADD datum__nach DATE NULL;
+    UPDATE fahrzeiten_soll_ist SET betriebs_datum = STR_TO_DATE(betriebsdatum ,'%d.%m.%Y');
     -- Schritt 5
     UPDATE fahrzeiten_soll_ist SET datumzeit_soll_an_von = DATE_ADD(STR_TO_DATE(datum_von,'%d.%m.%Y'), INTERVAL soll_an_von SECOND);
     UPDATE fahrzeiten_soll_ist SET datumzeit_ist_an_von = DATE_ADD(STR_TO_DATE(datum_von,'%d.%m.%Y'), INTERVAL ist_an_von SECOND);
     UPDATE fahrzeiten_soll_ist SET datumzeit_soll_ab_von = DATE_ADD(STR_TO_DATE(datum_von,'%d.%m.%Y'), INTERVAL soll_ab_von SECOND);
     UPDATE fahrzeiten_soll_ist SET datumzeit_ist_ab_von = DATE_ADD(STR_TO_DATE(datum_von,'%d.%m.%Y'), INTERVAL ist_ab_von SECOND);
-    UPDATE fahrzeiten_soll_ist SET datum__nach =STR_TO_DATE(datum_nach ,'%d.%m.%Y');ALTER TABLE fahrzeiten_soll_ist ADD datumzeit_soll_an_nach DATETIME NULL;
+    UPDATE fahrzeiten_soll_ist SET datum__nach =STR_TO_DATE(datum_nach ,'%d.%m.%Y');
+    ALTER TABLE fahrzeiten_soll_ist ADD datumzeit_soll_an_nach DATETIME NULL;
     ALTER TABLE fahrzeiten_soll_ist ADD datumzeit_ist_an_nach DATETIME NULL;
     ALTER TABLE fahrzeiten_soll_ist ADD datumzeit_soll_ab_nach DATETIME NULL;
     ALTER TABLE fahrzeiten_soll_ist ADD datumzeit_ist_ab_nach DATETIME NULL;
@@ -161,6 +163,8 @@ Fahrzeiten Linie 3
 
 ## 13
 
+### Nächste Station zu meinem Standort
+
 Vier nächste Stationen zum Paradeplatz: 47.36975, 8.53890
 
 Tabelle
@@ -173,3 +177,26 @@ Map
 
 ## 14
 
+### Distanz zwischen zwei Haltestellen
+
+![tram 14 1](tram_14_1.JPG)
+
+Script:
+
+        use vbzdat;
+        DROP TABLE IF EXISTS listenDistanzen;
+        CREATE TABLE listenDistanzen
+        SELECT h2.halt_lang as Erste_Station,
+        h4.halt_lang as Zweite_Station,
+        h.GPS_Latitude as lat1,
+        h.GPS_Longitude as lng1,
+        h3.GPS_Latitude as lat2,
+        h3.GPS_Longitude as lng2,
+        ROUND(ST_Distance_Sphere(point(h.GPS_Longitude , h.GPS_Latitude), point(h3.GPS_Longitude , h3.GPS_Latitude)),2) as distanz
+        FROM fahrzeiten_soll_ist fsi
+        LEFT JOIN haltepunkt h ON h.halt_punkt_id = fsi.halt_punkt_id_von
+        LEFT JOIN haltestelle h2 on h.halt_id = h2.halt_id
+        LEFT JOIN haltepunkt h3 ON h3.halt_punkt_id = fsi.halt_punkt_id_nach
+        LEFT JOIN haltestelle h4 on h3.halt_id = h4.halt_id
+        WHERE fsi.linie = 3 AND fsi.fahrt_id = 403 AND DATE(fsi.datumzeit_ist_an_von) = '2021-01-01'
+        ORDER BY distanz;
