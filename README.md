@@ -73,6 +73,28 @@ Konvertierung der Datentypen
 
 ![tram 7 1](tram_7_1.JPG)
 
+
+Script:
+
+        use vbzdat;
+        create or replace view timedifference
+        as select
+        fsi.linie, fsi.richtung, fsi.fahrzeug, fsi.kurs, fsi.seq_von,
+        fsi.halt_id_von, fsi.halt_id_nach, fsi.halt_punkt_id_von,
+        fsi.halt_punkt_id_nach, fsi.fahrt_id, fsi.fahrweg_id, fsi.fw_no,
+        fsi.fw_typ, fsi.fw_kurz, fsi.fw_lang, fsi.betriebs_datum,
+        fsi.datumzeit_soll_an_von, fsi.datumzeit_ist_an_von,
+        fsi.datumzeit_soll_ab_von, fsi.datumzeit_ist_ab_von, fsi.datum__nach,
+        TIMEDIFF (datumzeit_soll_an_von, datumzeit_ist_an_von) as timediff_an,
+        TIMESTAMPDIFF(SECOND, datumzeit_soll_an_von, datumzeit_ist_an_von) as timediff_an_seconds,
+        TIMEDIFF (datumzeit_soll_ab_von, datumzeit_ist_ab_von) as timediff_ab,
+        TIMESTAMPDIFF(SECOND, datumzeit_soll_ab_von, datumzeit_ist_ab_von) as timediff_ab_seconds,
+        TIMESTAMPDIFF(SECOND, datumzeit_soll_an_von, datumzeit_soll_ab_von) as halt_soll_time_seconds,
+        TIMESTAMPDIFF(SECOND, datumzeit_ist_an_von, datumzeit_ist_ab_von) as halt_ist_time_seconds
+        from fahrzeiten_soll_ist fsi
+        where fsi.fahrt_id=403 and fsi.linie=3 and fsi.datum_von='01.01.21'
+        limit 40000;
+
 ## 8
 
 ### Linien Tabelle
@@ -80,6 +102,19 @@ Konvertierung der Datentypen
 #### a & b
 
 ![tram 8 1](tram_8_1.JPG)
+
+Script:
+
+        use vbzdat;
+        create or replace view abfrage8a
+        as SELECT DISTINCT
+            fsi.fahrweg_id,
+            fsi.linie,
+            fsi.richtung,
+            fsi.fw_no,
+            fsi.fw_lang
+        from fahrzeiten_soll_ist fsi
+        where fsi.linie=3
 
 #### c
 
@@ -90,6 +125,43 @@ Konvertierung der Datentypen
 ### Ankunftszeitentabelle
 
 ![tram 9 1](tram_9_1.JPG)
+
+
+Script:
+
+        USE vbzdat;
+        CREATE TABLE ankunftszeiten 
+        SELECT  
+            fsi.halt_punkt_id_nach as haltpunkt_id,
+            fsi.fahrweg_id,
+            fsi.fahrt_id,
+            fsi.datumzeit_ist_an_nach AS datumszeit_ist_an,
+            fsi.datumzeit_soll_an_nach AS datumzeit_soll_an,
+            fsi.datumzeit_soll_ab_nach AS datumzeit_soll_ab,
+            TIMESTAMPDIFF (second, datumzeit_soll_an_nach, datumzeit_ist_an_nach) AS delay
+        FROM 
+           fahrzeiten_soll_ist fsi
+        WHERE
+            fsi.linie =3
+
+        UNION
+
+        SELECT 
+            fsi.halt_punkt_id_von AS haltpunkt_id,
+            fsi.fahrweg_id,
+            fsi.fahrt_id, 
+            fsi.datumzeit_ist_an_von AS datumszeit_ist_an,
+            fsi.datumzeit_soll_an_von AS datumzeit_soll_an,
+            fsi.datumzeit_soll_ab_von AS datumzeit_soll_ab,
+            TIMESTAMPDIFF (second, datumzeit_soll_an_von, datumzeit_ist_an_von) AS DELAY
+        FROM 
+           fahrzeiten_soll_ist fsi
+        WHERE
+            fsi.seq_von=1 AND fsi.linie =3; 
+
+        ALTER TABLE ankunftszeiten ADD id INT PRIMARY KEY auto_increment FIRST;
+        ALTER TABLE ankunftszeiten ADD CONSTRAINT ankunftszeiten_FK FOREIGN KEY (haltpunkt_id) REFERENCES haltepunkt(halt_punkt_id);
+        ALTER TABLE ankunftszeiten ADD CONSTRAINT ankunftszeiten_FK_1 FOREIGN KEY (fahrweg_id) REFERENCES linie(fahrweg_id);
 
 ## 10
 
@@ -155,11 +227,47 @@ Die Linie 3 auf der Map
 
 ![tram 11 1](tram_11_1.JPG)
 
+Script:
+
+        use vbzdat;
+        DROP TABLE IF EXISTS map_export_linie_3;
+        CREATE TABLE map_export_linie_3
+        SELECT
+            h.GPS_Latitude AS lat,
+            h.GPS_Longitude AS lng,
+            h2.halt_lang AS name,
+            '#299438' AS color,
+            a.delay AS note
+        FROM ankunftszeiten a
+        INNER JOIN haltepunkt h ON
+            a.haltpunkt_id = h.halt_punkt_id
+        INNER JOIN haltestelle h2 ON
+            h.halt_id = h2.halt_id
+        INNER JOIN linie l ON
+            a.fahrweg_id = l.fahrweg_id
+        where a.fahrt_id=403 and Date(a.datumszeit_ist_an)='21-01-01'
+        ORDER BY a.haltpunkt_id;
+
 ## 12
 
 Fahrzeiten Linie 3
 
 ![tram 12 1](tram_12_1.JPG)
+
+Script:
+
+        use vbzdat;
+        CREATE or replace view aufgabe12view
+        as SELECT
+            h2.halt_lang AS Verkehrshinweis,
+            time(a.datumzeit_soll_ab) AS Abfahrt
+        FROM ankunftszeiten a
+        INNER JOIN haltepunkt h ON
+            a.haltpunkt_id = h.halt_punkt_id
+        INNER JOIN haltestelle h2 ON
+            h.halt_id = h2.halt_id
+        where a.fahrt_id=403 and Date(a.datumszeit_ist_an)='21-01-01'
+        ORDER BY a.datumszeit_ist_an;
 
 ## 13
 
@@ -174,6 +282,30 @@ Tabelle
 Map
 
 ![tram 13 2](tram_13_2.JPG)
+
+Script:
+
+        use vbzdat;
+        set @lat = 47.36975;
+        set @lng = 8.53890;
+        DROP TABLE IF EXISTS map_export_4closest_stops;
+        CREATE TABLE map_export_4closest_stops
+        SELECT
+            h.GPS_Latitude AS lat,
+            h.GPS_Longitude AS lng,
+            h2.halt_lang AS name,
+            '#299438' AS color,
+            round(st_distance_sphere(point(@lng, @lat), point(h.GPS_Longitude, h.GPS_Latitude)), 2) AS note
+        FROM ankunftszeiten a
+        INNER JOIN haltepunkt h ON
+            a.haltpunkt_id = h.halt_punkt_id
+        INNER JOIN haltestelle h2 ON
+            h.halt_id = h2.halt_id
+        INNER JOIN linie l ON
+            a.fahrweg_id = l.fahrweg_id
+        where a.fahrt_id=403 and Date(a.datumszeit_ist_an)='21-01-01'
+        ORDER BY note
+        LIMIT 4;
 
 ## 14
 
